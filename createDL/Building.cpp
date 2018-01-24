@@ -108,7 +108,7 @@ void Building::readBIM(const char *path)
     replacementTime=json_number_value(tType);
 }
 
-void Building::readEDP(const char *filenameEDP)
+void Building::readEDP(const char *filenameEDP,int resp_index)
 {
 
     edp.IDR.resize(nStory);
@@ -169,7 +169,9 @@ void Building::readEDP(const char *filenameEDP)
 	  if (strcmp(type,"max_abs_acceleration") == 0) {
 	    int cline = json_integer_value(json_object_get(response, "cline"));
 	    int floor = json_integer_value(json_object_get(response, "floor"));
-	    double value = json_real_value(json_object_get(response, "scalar_data"));
+        //double value = json_real_value(json_object_get(response, "scalar_data"));
+        json_t *values = json_object_get(response,"scalar_data");
+        double value = json_real_value(json_array_get(values, resp_index));
 
 	    if (edp.PFA[floor-1] < value)	    
 	      edp.PFA[floor-1] = value;
@@ -178,7 +180,9 @@ void Building::readEDP(const char *filenameEDP)
 	    int cline = json_integer_value(json_object_get(response, "cline"));
 	    int floor1 = json_integer_value(json_object_get(response, "floor1"));
 	    int floor2 = json_integer_value(json_object_get(response, "floor1"));
-	    double value = json_real_value(json_object_get(response, "scalar_data"));
+        //double value = json_real_value(json_object_get(response, "scalar_data"));
+        json_t *values = json_object_get(response,"scalar_data");
+        double value = json_real_value(json_array_get(values, resp_index));
 
 	    if (edp.IDR[floor1-1] < value)	    
 	      edp.IDR[floor1-1] = value;	    
@@ -187,7 +191,9 @@ void Building::readEDP(const char *filenameEDP)
 	  else if (strcmp(type,"residual_disp") == 0) {
 	    int cline = json_integer_value(json_object_get(response, "cline"));
 	    int floor = json_integer_value(json_object_get(response, "floor"));
-	    double value = json_real_value(json_object_get(response, "scalar_data"));	    
+        //double value = json_real_value(json_object_get(response, "scalar_data"));
+        json_t *values = json_object_get(response,"scalar_data");
+        double value = json_real_value(json_array_get(values, resp_index));
 	    if (edp.residual < value)
 	      edp.residual =value;
 	  }
@@ -196,4 +202,16 @@ void Building::readEDP(const char *filenameEDP)
     }
 }
 
+int Building::getNumResponses(const char *filenameEDP)
+{
 
+    json_error_t error;
+    json_t *rootEDP = json_load_file(filenameEDP, 0, &error);
+    json_t *edps = json_object_get(rootEDP,"EngineeringDemandParameters");
+    json_t *eventEDPs = json_array_get(edps, 0);
+    json_t *eventEDP = json_object_get(eventEDPs,"responses");
+    json_t *response = json_array_get(eventEDP, 0);
+    json_t *values = json_object_get(response,"scalar_data");
+    int numValues = json_array_size(values);
+    return numValues;
+}

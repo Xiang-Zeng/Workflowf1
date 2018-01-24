@@ -24,32 +24,42 @@ int HazusLossEstimator::determineLOSS(const char *filenameBIM,
 {
     Building * bldg= new Building();
     bldg->readBIM(filenameBIM);
-    bldg->readEDP(filenameEDP);
 
     _GenRealizations(bldg);
-    _CalcBldgConseqScenario(bldg);
+
+    int numResponses=bldg->getNumResponses(filenameEDP);
+    vector<double> vLoss,vRpTime,vTagProb;
+    for(int i=0;i<numResponses;++i)
+    {
+        bldg->readEDP(filenameEDP,i);
+        _CalcBldgConseqScenario(bldg);
+
+        vLoss.insert(vLoss.end(),bldg->totalLoss.begin(),bldg->totalLoss.end());
+        vRpTime.insert(vRpTime.end(),bldg->totalDowntime.begin(),bldg->totalDowntime.end());
+        vTagProb.push_back(bldg->redTagProb);
+    }
 
 
-    double lossratio=bldg->totalLossMedian/bldg->replacementCost;
+    double lossratio=stat->getMedian(vLoss)/bldg->replacementCost;
     json_t *root = json_object();
     json_t *dl = json_object();
     json_object_set(dl,"MedianLossRatio",json_real(lossratio));
-    json_object_set(dl,"MedianRepairCost",json_real(bldg->totalLossMedian));
-    json_object_set(dl,"MeanRepairCost",json_real(stat->getMean(bldg->totalLoss)));
-    json_object_set(dl,"StdRepairCost",json_real(stat->getStd(bldg->totalLoss)));
-    json_object_set(dl,"10PercentileLoss",json_real(stat->getPercentile(bldg->totalLoss,10)));
-    json_object_set(dl,"90PercentileLoss",json_real(stat->getPercentile(bldg->totalLoss,90)));
+    json_object_set(dl,"MedianRepairCost",json_real(stat->getMedian(vLoss)));
+    json_object_set(dl,"MeanRepairCost",json_real(stat->getMean(vLoss)));
+    json_object_set(dl,"StdRepairCost",json_real(stat->getStd(vLoss)));
+    json_object_set(dl,"10PercentileLoss",json_real(stat->getPercentile(vLoss,10)));
+    json_object_set(dl,"90PercentileLoss",json_real(stat->getPercentile(vLoss,90)));
 
     json_object_set(root,"EconomicLoss",dl);
-    json_t *downtime = json_object();
-    json_object_set(downtime,"MedianDowntime",json_real(bldg->totalDowntimeMedian));
-    json_object_set(root,"Downtime",downtime);
+    json_t *repairTime = json_object();
+    json_object_set(repairTime,"MedianRepairTime",json_real(stat->getMedian(vRpTime)));
+    json_object_set(root,"RepairTime",repairTime);
     json_t *tag = json_object();
-    if(bldg->redTagProb>0.5)
+    if(stat->getMean(vTagProb)>0.5)
         json_object_set(tag,"Tag",json_string("red"));
     else
         json_object_set(tag,"Tag",json_string("none"));
-    json_object_set(tag,"RedTagProbability",json_real(bldg->redTagProb));
+    json_object_set(tag,"RedTagProbability",json_real(stat->getMean(vTagProb)));
     json_object_set(root,"UnsafePlacards",tag);
 
 
@@ -363,6 +373,14 @@ void HazusLossEstimator::_CalcBldgConseqScenario(Building *bldg)
         bldg->totalLoss[currRealization]=0.0;
         bldg->totalDowntime[currRealization]=0.0;
         bldg->redTag[currRealization]=FragilityCurve::none;
+        for (int i=0;i<=bldg->nStory;++i)
+        {
+            for(unsigned int j=0;j<bldg->components[i].size();++j)
+            {
+                bldg->components[i][j].loss[currRealization]=0.0;
+                bldg->components[i][j].downtime[currRealization]=0.0;
+            }
+        }
         _qRepair.clear();
         for (int i=0;i<=bldg->nStory;++i)
         {

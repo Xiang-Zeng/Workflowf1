@@ -33,8 +33,9 @@ public:
 
     Building();
     void readBIM(const char *path);
-    void readEDP(const char *path);
-
+    //void readEDP(const char *path);
+    void readEDP(const char *path,int resp_index=0);
+    int getNumResponses(const char *path);
 
     //==========basic parameters===============================
     int id;
